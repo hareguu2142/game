@@ -206,6 +206,39 @@ h3 {
     font-size: 0.9em;
     padding: 5px 10px;
 }
+
+.rules-section {
+    margin-top: 20px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    border: 1px solid #dee2e6;
+    text-align: left;
+}
+
+.rules-section h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 1.3em;
+    color: #495057;
+    text-align: center;
+    border-bottom: 1px solid #ced4da;
+    padding-bottom: 5px;
+}
+
+.rules-list {
+    list-style-type: disc;
+    padding-left: 20px;
+    margin: 0;
+}
+
+.rules-list li {
+    margin-bottom: 8px;
+    color: #212529;
+    font-size: 1em;
+    line-height: 1.5;
+}
     </style>
 </head>
 <body>
@@ -243,13 +276,49 @@ h3 {
             <h2>점수판</h2>
             <div class="player-score">
                 <span>플레이어 1: <span id="player1Score">0</span> 점</span>
-                <button onclick="updateScore('player1', 1)">+1점</button>
-                <button onclick="updateScore('player1', -1)">-1점</button>
+                <button onclick="updateScore('player1', 1)">+1점 (정답)</button>
+                <button onclick="updateScore('player1', -2)">-2점 (오답)</button>
             </div>
             <div class="player-score">
                 <span>플레이어 2: <span id="player2Score">0</span> 점</span>
-                <button onclick="updateScore('player2', 1)">+1점</button>
-                <button onclick="updateScore('player2', -1)">-1점</button>
+                <button onclick="updateScore('player2', 1)">+1점 (정답)</button>
+                <button onclick="updateScore('player2', -2)">-2점 (오답)</button>
+            </div>
+
+            <div class="rules-section">
+                <h3>게임 룰</h3>
+                <ul class="rules-list">
+                    <li><strong>게임 목표:</strong> 사회자가 제시하는 <strong>목표 숫자</strong>를 <strong>주어진 숫자들 중 3개를 더하여</strong> 만들 수 있는지 맞추는 게임입니다.</li>
+                    <li><strong>"합" 외치기:</strong> 목표 숫자를 만들 수 있다고 생각하면 "합!"을 외칩니다.
+                        <ul>
+                            <li>정답 ("합"이 맞는 경우): +1점</li>
+                            <li>오답 ("불"이 맞는 경우): -2점</li>
+                        </ul>
+                    </li>
+                    <li><strong>"불" 외치기:</strong> 목표 숫자를 만들 수 없다고 생각하면 "불!"을 외칩니다.
+                        <ul>
+                            <li>정답 ("불"이 맞는 경우): +1점</li>
+                            <li>오답 ("합"이 맞는 경우): -2점</li>
+                        </ul>
+                    </li>
+                    <li><strong>게임 진행:</strong>
+                        <ol>
+                            <li>사회자는 "새 숫자 세트 시작" 버튼으로 8개의 숫자를 공개하고 목표 숫자를 제시합니다.</li>
+                            <li>플레이어는 "합" 또는 "불"을 외칠 기회를 얻습니다. (가장 먼저 외친 플레이어에게 기회)</li>
+                            <li>사회자는 플레이어의 외침에 따라 "합" 또는 "불" 버튼을 클릭하여 정오답을 확인합니다.</li>
+                            <li>"다음 문제" 버튼을 누르면 주어진 숫자 중 하나가 랜덤하게 제거되고, 새로운 목표 숫자가 제시됩니다. 이 과정은 숫자가 5개가 남을 때까지 반복됩니다.</li>
+                            <li>숫자가 5개가 남은 상태에서 문제가 출제된 후 "다음 문제"를 누르면 해당 라운드가 종료되고 동시에, 새로운 8개의 숫자로 시작합니다.</li>
+                        </ol>
+                    </li>
+                    <li><strong>점수:</strong> 점수는 음수가 될 수 있습니다.</li>
+                    <li><strong>승리 조건:</strong> 정해진 라운드 수 이후 또는 특정 시간 이후 가장 높은 점수를 얻은 플레이어가 승리합니다. (사회자 재량)</li>
+                    <li><strong>사회자 기능:</strong>
+                        <ul>
+                            <li>"정답 공개": 현재 문제의 정답("합" 또는 "불")과 "합"일 경우 가능한 숫자 조합을 보여줍니다.</li>
+                            <li>"점수 초기화": 모든 플레이어의 점수를 0으로 초기화합니다.</li>
+                        </ul>
+                    </li>
+                </ul>
             </div>
             <button id="resetScoresBtn">점수 초기화</button>
         </div>
@@ -323,96 +392,156 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const possibleSums = getAllPossible3Sums(currentNumbers);
         
-        if (possibleSums.length === 0) {
-            targetNumber = currentNumbers.reduce((a,b)=>a+b,0) + 10;
-            isActuallyHap = false;
-            actualSolutions = [];
-        } else {
-            const minSum = possibleSums[0];
-            const maxSum = possibleSums[possibleSums.length - 1];
-            
-            targetNumber = Math.floor(Math.random() * (maxSum - minSum + 1)) + minSum;
+        // 합/불이 적절히 섞이도록 조정
+        const shouldBeHap = Math.random() < 0.6; // 60% 확률로 "합" 문제 시도
+
+        if (possibleSums.length > 0 && shouldBeHap) {
+            // "합" 문제 생성 시도
+            targetNumber = possibleSums[Math.floor(Math.random() * possibleSums.length)];
             actualSolutions = findSumCombinations(currentNumbers, targetNumber);
             isActuallyHap = actualSolutions.length > 0;
+             if (!isActuallyHap) { // 만약 조합을 못찾으면 (이론상 발생 안해야 함) "불"로 처리
+                targetNumber = generateBelievableNonSum(possibleSums);
+                isActuallyHap = false;
+                actualSolutions = [];
+            }
+        } else {
+            // "불" 문제 생성 시도 또는 possibleSums가 없을 때
+             targetNumber = generateBelievableNonSum(possibleSums);
+             isActuallyHap = false;
+             actualSolutions = [];
         }
         
         targetNumberDisplayDiv.textContent = targetNumber;
         return true;
     }
 
+    function generateBelievableNonSum(possibleSums) {
+        // "불" 문제를 만들 때, 아예 터무니없는 숫자가 아닌, 있을 법하지만 없는 숫자를 생성
+        let nonSumTarget;
+        let attempts = 0;
+        const minNum = Math.min(...currentNumbers);
+        const maxNum = Math.max(...currentNumbers);
+
+        // 대략적인 합의 범위 설정
+        const minPossibleSum = currentNumbers.length >=3 ? currentNumbers.slice(0,3).reduce((a,b)=>a+b,0) : minNum * 3;
+        const maxPossibleSum = currentNumbers.length >=3 ? currentNumbers.slice(-3).reduce((a,b)=>a+b,0) : maxNum * 3;
+
+
+        do {
+            nonSumTarget = Math.floor(Math.random() * (maxPossibleSum - minPossibleSum + 10)) + minPossibleSum -5; // 약간의 범위 확장
+            if (nonSumTarget < 3) nonSumTarget = 3; // 최소 합은 1+1+1 (만약 숫자 범위가 1부터라면) 가정
+            attempts++;
+        } while (possibleSums.includes(nonSumTarget) && attempts < 50); // 50번 시도 후에도 못찾으면 그냥 진행
+
+        // 그래도 못찾으면 (possibleSums가 너무 촘촘하거나 할 경우)
+        if (possibleSums.includes(nonSumTarget)) {
+            if (possibleSums.length > 0) {
+                 nonSumTarget = Math.max(...possibleSums) + Math.floor(Math.random()*3)+1; // 가장 큰 합보다 조금 더 크게
+            } else {
+                 nonSumTarget = currentNumbers.reduce((a,b)=>a+b,0) + 10; // 모든 숫자의 합 + 10 (터무니 없지만 확실한 불)
+            }
+        }
+        return nonSumTarget;
+    }
+
+
     function findSumCombinations(numbers, target) {
         const solutions = [];
         const n = numbers.length;
         if (n < 3) return solutions;
 
+        // 중복 조합을 피하기 위해 먼저 숫자를 정렬 (이미 정렬된 상태로 들어올 수도 있지만, 안전하게)
+        const sortedNumbers = [...numbers].sort((a,b) => a-b);
+
         for (let i = 0; i < n - 2; i++) {
             for (let j = i + 1; j < n - 1; j++) {
                 for (let k = j + 1; k < n; k++) {
-                    if (numbers[i] + numbers[j] + numbers[k] === target) {
-                        solutions.push([numbers[i], numbers[j], numbers[k]].sort((a,b)=>a-b));
+                    if (sortedNumbers[i] + sortedNumbers[j] + sortedNumbers[k] === target) {
+                        solutions.push([sortedNumbers[i], sortedNumbers[j], sortedNumbers[k]]);
                     }
                 }
             }
         }
-        if (solutions.length > 0) {
-            const uniqueSolutions = Array.from(new Set(solutions.map(s => JSON.stringify(s)))).map(s => JSON.parse(s));
-            return uniqueSolutions;
-        }
-        return [];
+        // 이미 생성 로직에서 정렬된 숫자를 사용하므로, 추가적인 unique 처리는 findSumCombinations의 책임보다는
+        // getAllPossible3Sums 에서 Set을 사용함으로써 sum 값의 유일성을 보장하고,
+        // findSumCombinations는 해당 target에 대한 모든 조합 (정렬된 상태로)을 반환하는 것이 명확함.
+        // 만약 동일한 숫자가 여러 개 있을 수 있는 경우라면 unique 처리가 더 복잡해지나, 현재는 unique random number이므로 간단.
+        return solutions;
     }
 
     function startNewSet() {
-        currentNumbers = generateUniqueRandomNumbers(8, 1, 15);
+        currentNumbers = generateUniqueRandomNumbers(8, 1, 20); // 숫자 범위 1~20으로 약간 늘림
+        currentNumbers.sort((a,b)=>a-b); // 생성 후 정렬
         displayNumbers();
         if (generateTargetAndSolutions()) {
              displayMessage("새로운 숫자 세트와 목표 숫자가 준비되었습니다.", "info");
         }
         nextProblemBtn.disabled = false;
+        hapBtn.disabled = false;
+        boolBtn.disabled = false;
+        revealAnswerBtn.disabled = false;
     }
 
     function nextProblem() {
-        if (currentNumbers.length <= 5) {
+        if (currentNumbers.length <= 5) { // 5개일 때가 마지막 문제, 그 다음 누르면 새 세트
             displayMessage("라운드 종료! 새로운 숫자 8개로 시작합니다.", "info");
             startNewSet();
             return;
         }
 
-        if (currentNumbers.length > 3) {
+        if (currentNumbers.length > 3) { // 최소 3개는 있어야 합을 만들 수 있음
             const removeIndex = Math.floor(Math.random() * currentNumbers.length);
             const removedNumber = currentNumbers.splice(removeIndex, 1)[0];
             displayNumbers();
             if (generateTargetAndSolutions()) {
-                displayMessage(`${removedNumber}이(가) 제거되었습니다. 새 목표 숫자가 설정되었습니다.`, "info");
+                displayMessage(`${removedNumber}이(가) 제거되었습니다. 현재 ${currentNumbers.length}개 숫자. 새 목표 숫자가 설정되었습니다.`, "info");
             }
         } else {
-             displayMessage("더 이상 숫자를 제거할 수 없습니다. 새 숫자 세트를 시작하세요.", "error");
+             displayMessage("더 이상 숫자를 제거할 수 없습니다 (최소 3개). 새 숫자 세트를 시작하세요.", "error");
              nextProblemBtn.disabled = true;
         }
+        hapBtn.disabled = false;
+        boolBtn.disabled = false;
+        revealAnswerBtn.disabled = false;
     }
     
-    hapBtn.addEventListener('click', () => {
+    function handlePlayerCall(isHapCall) {
         if (targetNumberDisplayDiv.textContent === '?' || targetNumberDisplayDiv.textContent === '-') {
             displayMessage("먼저 게임을 시작하거나 다음 문제를 진행해주세요.", "error");
             return;
         }
-        if (isActuallyHap) {
-            displayMessage(`정답! "합"이 맞습니다. (예: ${actualSolutions[0].join(' + ')})`, "success");
-        } else {
-            displayMessage(`땡! 실제로는 "불"입니다. 이 숫자로 ${targetNumber}을 만들 수 없습니다.`, "error");
-        }
-    });
 
-    boolBtn.addEventListener('click', () => {
-         if (targetNumberDisplayDiv.textContent === '?' || targetNumberDisplayDiv.textContent === '-') {
-            displayMessage("먼저 게임을 시작하거나 다음 문제를 진행해주세요.", "error");
-            return;
+        let correctCall;
+        let messageText;
+
+        if (isHapCall) { // 플레이어가 "합"을 외침
+            correctCall = isActuallyHap;
+            if (correctCall) {
+                messageText = `정답! "합"이 맞습니다. (예: ${actualSolutions[0].join(' + ')} = ${targetNumber})`;
+                displayMessage(messageText, "success");
+            } else {
+                messageText = `땡! 실제로는 "불"입니다. 이 숫자들로 ${targetNumber}을 만들 수 없습니다.`;
+                displayMessage(messageText, "error");
+            }
+        } else { // 플레이어가 "불"을 외침
+            correctCall = !isActuallyHap;
+            if (correctCall) {
+                messageText = `정답! "불"이 맞습니다. 이 숫자들로 ${targetNumber}을 만들 수 없습니다.`;
+                displayMessage(messageText, "success");
+            } else {
+                messageText = `땡! 실제로는 "합"입니다. (예: ${actualSolutions[0].join(' + ')} = ${targetNumber})`;
+                displayMessage(messageText, "error");
+            }
         }
-        if (!isActuallyHap) {
-            displayMessage("정답! 불이 맞습니다.", "success");
-        } else {
-            displayMessage(`땡! 실제로는 "합"입니다. (예: ${actualSolutions[0].join(' + ')})`, "error");
-        }
-    });
+        // 사회자가 정오답을 확인했으므로, 다음 문제로 넘어가거나 정답을 공개할 때까지 버튼 비활성화
+        hapBtn.disabled = true;
+        boolBtn.disabled = true;
+        // revealAnswerBtn.disabled = true; // 정답 공개는 계속 가능하게 둘 수 있음
+    }
+
+    hapBtn.addEventListener('click', () => handlePlayerCall(true));
+    boolBtn.addEventListener('click', () => handlePlayerCall(false));
 
     revealAnswerBtn.addEventListener('click', () => {
         if (targetNumberDisplayDiv.textContent === '?' || targetNumberDisplayDiv.textContent === '-') {
@@ -425,11 +554,12 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             displayMessage(`정답은 "불"입니다. ${targetNumber}을 만들 수 있는 조합이 없습니다.`, "info");
         }
+        hapBtn.disabled = true;
+        boolBtn.disabled = true;
     });
 
     window.updateScore = function(player, change) {
         scores[player] += change;
-        if (scores[player] < 0) scores[player] = 0;
         document.getElementById(`${player}Score`).textContent = scores[player];
     }
 
@@ -443,7 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function displayMessage(msg, type = "info") {
         messageAreaDiv.textContent = msg;
-        messageAreaDiv.className = 'message';
+        messageAreaDiv.className = 'message'; // Reset classes
         if (type) {
             messageAreaDiv.classList.add(type);
         }
@@ -452,9 +582,13 @@ document.addEventListener('DOMContentLoaded', () => {
     startNewSetBtn.addEventListener('click', startNewSet);
     nextProblemBtn.addEventListener('click', nextProblem);
     
+    // 초기 상태 설정
     displayMessage("새 숫자 세트 시작 버튼을 눌러 게임을 시작하세요.", "info");
     targetNumberDisplayDiv.textContent = '?';
     nextProblemBtn.disabled = true;
+    hapBtn.disabled = true;
+    boolBtn.disabled = true;
+    revealAnswerBtn.disabled = true;
 });
     </script>
 </body>
