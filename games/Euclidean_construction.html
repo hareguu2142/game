@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>디지털 작도 게임 (설정 가능 버전)</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f2f5;
+            color: #333;
+        }
+
+        #container {
+            text-align: center;
+            background-color: white;
+            padding: 20px 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            width: 1200px;
+        }
+
+        h1 {
+            color: #0056b3;
+            margin-bottom: 10px;
+        }
+
+        /* 설정 패널 스타일 */
+        .settings-panel {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 15px;
+            background-color: #f9f9f9;
+        }
+        .settings-panel summary {
+            font-weight: bold;
+            cursor: pointer;
+            color: #0056b3;
+            font-size: 1.1em;
+        }
+        .settings-content {
+            margin-top: 10px;
+            font-size: 1em;
+        }
+        .settings-content p {
+            margin: 0 0 10px 0;
+            line-height: 1.5;
+        }
+        #ref-length-input {
+            width: 100px;
+            padding: 5px;
+            font-size: 1em;
+        }
+        #apply-settings-button {
+            padding: 5px 15px;
+            font-size: 1em;
+            margin-left: 10px;
+        }
+
+        /* 빔프로젝터에 그려질 캔버스 */
+        canvas#drawing-board {
+            border: 2px solid #ccc;
+            background-color: #ffffff;
+            cursor: crosshair;
+            margin-bottom: 15px;
+        }
+
+        /* 컨트롤 패널 스타일 */
+        #controls {
+            width: 100%;
+        }
+
+        #status-message {
+            color: #d9534f;
+            font-size: 1.5em;
+            min-height: 1.5em;
+            font-weight: bold;
+        }
+
+        .info-panel {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 1.4em;
+        }
+
+        .info-panel div {
+            flex: 1;
+        }
+
+        #target-length {
+            width: 200px;
+            padding: 8px;
+            font-size: 1em;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        #measured-length, #difference {
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        /* 버튼 스타일 */
+        #reset-button, #apply-settings-button {
+            color: white;
+            background-color: #28a745;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            font-weight: bold;
+        }
+        #reset-button {
+            padding: 15px 30px;
+            font-size: 1.2em;
+        }
+        #reset-button:hover, #apply-settings-button:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="container">
+        <h1>디지털 작도 게임</h1>
+        
+        <!-- 설정 패널 (접기/펴기 가능) -->
+        <details class="settings-panel">
+            <summary>기준선 설정 (클릭하여 열기/닫기)</summary>
+            <div class="settings-content">
+                <p>
+                    <strong>위치 변경:</strong> 캔버스 위의 회색 기준선을 마우스로 드래그하세요.<br>
+                    <strong>길이 변경:</strong> 아래 칸에 새로운 픽셀 길이를 입력하고 '설정 적용' 버튼을 누르세요.
+                </p>
+                <div>
+                    <label for="ref-length-input">기준선 픽셀 길이:</label>
+                    <input type="number" id="ref-length-input" value="300" min="50" max="1000">
+                    <button id="apply-settings-button">설정 적용</button>
+                </div>
+            </div>
+        </details>
+        
+        <!-- 작도 및 측정이 이루어지는 캔버스 영역 -->
+        <canvas id="drawing-board"></canvas>
+
+        <div id="controls">
+            <h2 id="status-message">측정할 선분의 첫 번째 끝점을 클릭하세요.</h2>
+            
+            <div class="info-panel">
+                <div>
+                    <label for="target-length">목표 길이:</label>
+                    <input type="text" id="target-length" placeholder="예: 1.414 또는 Math.sqrt(2)">
+                </div>
+                <div>
+                    <p>측정된 길이: <span id="measured-length">0.000</span></p>
+                </div>
+                <div>
+                    <p>오차: <span id="difference">0.000</span></p>
+                </div>
+            </div>
+
+            <button id="reset-button">측정 초기화</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('drawing-board');
+            const ctx = canvas.getContext('2d');
+
+            // DOM 요소 가져오기
+            const statusMessage = document.getElementById('status-message');
+            const targetLengthInput = document.getElementById('target-length');
+            const measuredLengthSpan = document.getElementById('measured-length');
+            const differenceSpan = document.getElementById('difference');
+            const resetButton = document.getElementById('reset-button');
+            const refLengthInput = document.getElementById('ref-length-input');
+            const applySettingsButton = document.getElementById('apply-settings-button');
+
+            canvas.width = 1200;
+            canvas.height = 600;
+
+            // --- 게임 상태 변수 ---
+            // 기준 선분 관련 변수 (let으로 변경)
+            let referencePixelLength = 300;
+            let refStart = { x: (canvas.width - referencePixelLength) / 2, y: 50 };
+
+            // 측정 관련 변수
+            let isMeasuring = false;
+            let firstPoint = null;
+            let measuredPoints = []; // 측정된 점들을 저장하여 다시 그릴 수 있도록 함
+
+            // 기준선 드래그 관련 변수
+            let isDraggingRef = false;
+            let dragOffset = { x: 0, y: 0 };
+            
+            // --- 그리기 함수 ---
+            function redrawCanvas() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawReferenceLine();
+                drawMeasuredLine(); // 측정된 선도 다시 그림
+            }
+            
+            // 1. 기준 선분 그리기
+            function drawReferenceLine() {
+                ctx.beginPath();
+                ctx.moveTo(refStart.x, refStart.y);
+                ctx.lineTo(refStart.x + referencePixelLength, refStart.y);
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = '#333';
+                ctx.stroke();
+
+                drawPoint(refStart.x, refStart.y, '#333');
+                drawPoint(refStart.x + referencePixelLength, refStart.y, '#333');
+
+                ctx.font = 'bold 32px Arial';
+                ctx.fillStyle = '#333';
+                ctx.textAlign = 'center';
+                ctx.fillText('1', refStart.x + referencePixelLength / 2, refStart.y - 20);
+            }
+
+            // 2. 측정된 선분 그리기
+            function drawMeasuredLine() {
+                if (measuredPoints.length === 0) return;
+
+                // 첫 번째 점
+                drawPoint(measuredPoints[0].x, measuredPoints[0].y);
+                
+                if (measuredPoints.length === 2) {
+                    // 두 번째 점과 선분
+                    drawPoint(measuredPoints[1].x, measuredPoints[1].y);
+                    ctx.beginPath();
+                    ctx.moveTo(measuredPoints[0].x, measuredPoints[0].y);
+                    ctx.lineTo(measuredPoints[1].x, measuredPoints[1].y);
+                    ctx.lineWidth = 3;
+                    ctx.strokeStyle = '#007bff';
+                    ctx.stroke();
+                }
+            }
+
+            // 점을 그리는 헬퍼 함수
+            function drawPoint(x, y, color = 'red') {
+                ctx.beginPath();
+                ctx.arc(x, y, 8, 0, Math.PI * 2);
+                ctx.fillStyle = color;
+                ctx.fill();
+            }
+            
+            // --- 이벤트 핸들러 ---
+            canvas.addEventListener('mousedown', (event) => {
+                const mouse = getMousePos(event);
+                // 기준선 위에서 mousedown 했는지 확인
+                if (isMouseOnRefLine(mouse)) {
+                    isDraggingRef = true;
+                    dragOffset.x = mouse.x - refStart.x;
+                    dragOffset.y = mouse.y - refStart.y;
+                    canvas.style.cursor = 'move';
+                }
+            });
+
+            canvas.addEventListener('mousemove', (event) => {
+                if (isDraggingRef) {
+                    const mouse = getMousePos(event);
+                    refStart.x = mouse.x - dragOffset.x;
+                    refStart.y = mouse.y - dragOffset.y;
+                    redrawCanvas();
+                } else {
+                    const mouse = getMousePos(event);
+                    if(isMouseOnRefLine(mouse)) {
+                        canvas.style.cursor = 'move';
+                    } else {
+                        canvas.style.cursor = 'crosshair';
+                    }
+                }
+            });
+
+            canvas.addEventListener('mouseup', () => {
+                if (isDraggingRef) {
+                    isDraggingRef = false;
+                    canvas.style.cursor = 'crosshair';
+                    // 위치 변경 후 계산값 업데이트
+                    if (measuredPoints.length === 2) {
+                        calculateAndDisplayResults(measuredPoints[0], measuredPoints[1]);
+                    }
+                }
+            });
+
+            // 측정 로직은 click 이벤트에서 처리 (드래그와 구분하기 위함)
+            canvas.addEventListener('click', (event) => {
+                if (isDraggingRef) return; // 드래그 중에는 측정을 방지
+
+                const point = getMousePos(event);
+
+                if (!isMeasuring) {
+                    // 측정 시작
+                    clearMeasurement();
+                    measuredPoints.push(point);
+                    isMeasuring = true;
+                    
+                    redrawCanvas();
+                    statusMessage.textContent = '두 번째 끝점을 클릭하세요.';
+
+                } else {
+                    // 측정 완료
+                    measuredPoints.push(point);
+                    redrawCanvas();
+                    calculateAndDisplayResults(measuredPoints[0], measuredPoints[1]);
+                    
+                    isMeasuring = false;
+                    statusMessage.textContent = '측정 완료! [측정 초기화] 버튼으로 다시 시작하세요.';
+                }
+            });
+            
+            // --- 유틸리티 및 계산 함수 ---
+
+            // 마우스 좌표 구하기
+            function getMousePos(event) {
+                const rect = canvas.getBoundingClientRect();
+                return {
+                    x: event.clientX - rect.left,
+                    y: event.clientY - rect.top
+                };
+            }
+
+            // 마우스가 기준선 위에 있는지 확인하는 함수
+            function isMouseOnRefLine(mouse) {
+                const lineY = refStart.y;
+                const lineStartX = refStart.x;
+                const lineEndX = refStart.x + referencePixelLength;
+                const tolerance = 10; // 클릭 허용 오차 범위
+
+                return mouse.x >= lineStartX - tolerance &&
+                    mouse.x <= lineEndX + tolerance &&
+                    mouse.y >= lineY - tolerance &&
+                    mouse.y <= lineY + tolerance;
+            }
+
+            // 거리 계산 및 결과 표시
+            function calculateAndDisplayResults(p1, p2) {
+                const dx = p2.x - p1.x;
+                const dy = p2.y - p1.y;
+                const measuredPixelLength = Math.sqrt(dx * dx + dy * dy);
+
+                // 픽셀 길이를 기준 단위로 변환
+                const measuredUnitLength = measuredPixelLength / referencePixelLength;
+                
+                measuredLengthSpan.textContent = measuredUnitLength.toFixed(3);
+                calculateDifference();
+            }
+
+            // 오차 계산
+            function calculateDifference() {
+                const measuredUnitLength = parseFloat(measuredLengthSpan.textContent);
+                let targetValue = 0;
+                
+                try {
+                    // 'Math.'을 포함한 수식을 계산할 수 있도록 eval 사용
+                    targetValue = eval(targetLengthInput.value) || 0;
+                } catch (e) {
+                    targetValue = 0;
+                }
+                
+                if (!isNaN(targetValue) && targetValue > 0) {
+                    const diff = Math.abs(measuredUnitLength - targetValue);
+                    differenceSpan.textContent = diff.toFixed(3);
+                } else {
+                    differenceSpan.textContent = '0.000';
+                }
+            }
+
+            // 측정 상태만 초기화하는 함수
+            function clearMeasurement() {
+                isMeasuring = false;
+                measuredPoints = [];
+                measuredLengthSpan.textContent = '0.000';
+                calculateDifference();
+                statusMessage.textContent = '측정할 선분의 첫 번째 끝점을 클릭하세요.';
+                redrawCanvas();
+            }
+            
+            // --- 설정 관련 이벤트 핸들러 ---
+            
+            // '설정 적용' 버튼 클릭 이벤트
+            applySettingsButton.addEventListener('click', () => {
+                const newLength = parseInt(refLengthInput.value, 10);
+                if (newLength && newLength >= 50 && newLength <= 1000) {
+                    referencePixelLength = newLength;
+                    clearMeasurement(); // 설정을 바꿨으므로 측정 초기화
+                    alert('기준선 길이가 ' + newLength + 'px로 변경되었습니다.');
+                } else {
+                    alert('유효한 픽셀 길이를 입력해주세요 (50 ~ 1000).');
+                    refLengthInput.value = referencePixelLength; // 원래 값으로 복원
+                }
+            });
+
+            // '측정 초기화' 버튼 이벤트
+            resetButton.addEventListener('click', clearMeasurement);
+
+            // '목표 길이' 입력 시 실시간으로 오차 계산
+            targetLengthInput.addEventListener('input', calculateDifference);
+
+            // --- 페이지 로드 시 초기화 ---
+            refLengthInput.value = referencePixelLength;
+            redrawCanvas();
+        });
+    </script>
+</body>
+</html>
